@@ -62,8 +62,8 @@ def prepare_input():
         'ANXIETY': 1 if anxiety == 'Yes' else 0,
         'PEER_PRESSURE': 1 if peer_pressure == 'Yes' else 0,
         'CHRONIC DISEASE': 1 if chronic_disease == 'Yes' else 0,
-        'FATIGUE': 1 if fatigue == 'Yes' else 0,  # Removed trailing space
-        'ALLERGY': 1 if allergy == 'Yes' else 0,  # Removed trailing space
+        'FATIGUE': 1 if fatigue == 'Yes' else 0,
+        'ALLERGY': 1 if allergy == 'Yes' else 0,
         'WHEEZING': 1 if wheezing == 'Yes' else 0,
         'ALCOHOL CONSUMING': 1 if alcohol == 'Yes' else 0,
         'COUGHING': 1 if coughing == 'Yes' else 0,
@@ -80,7 +80,6 @@ def prepare_input():
         'SHORTNESS OF BREATH', 'SWALLOWING DIFFICULTY', 'CHEST PAIN'
     ]
     
-    # Return as 2D numpy array
     return np.array([[input_data[col] for col in feature_order]])
 
 # Prediction button
@@ -88,14 +87,8 @@ if st.button('Predict Lung Cancer Risk'):
     try:
         input_data = prepare_input()
         
-        # Debug: Show input shape and data
-        st.write("Input shape:", input_data.shape)
-        st.write("Sample input:", input_data[0])
-        
         # Make prediction
         prediction = model.predict(input_data)
-        
-        # Ensure prediction is in the right format
         prediction = np.array(prediction).flatten()
         
         st.subheader('Prediction Results')
@@ -109,16 +102,19 @@ if st.button('Predict Lung Cancer Risk'):
             st.success('Low risk of lung cancer detected')
             risk_level = "Low"
         
-        # Try to get confidence information
+        # Get confidence scores if available
         try:
             if hasattr(model, 'decision_function'):
                 confidence = model.decision_function(input_data)
                 st.write(f"Confidence score: {confidence[0]:.2f}")
-                st.write("(Positive values indicate higher risk)")
-            
-            elif hasattr(model, 'predict_proba'):
-                proba = model.predict_proba(input_data)
-                st.write(f"Risk probability: {proba[0][1]:.1%}")
+                st.write("""
+                Interpretation:
+                - Positive values indicate higher risk
+                - Negative values indicate lower risk
+                - Magnitude indicates confidence
+                """)
+            else:
+                st.info("Probability estimates not available for this model configuration")
         except Exception as e:
             st.warning(f"Couldn't get confidence scores: {str(e)}")
         
@@ -126,25 +122,4 @@ if st.button('Predict Lung Cancer Risk'):
         st.subheader('Recommendation')
         if risk_level == "High":
             st.warning("""
-            **Consult a healthcare professional immediately**  
-            • Schedule a doctor's appointment  
-            • Consider diagnostic tests  
-            • Review risk factors
-            """)
-        else:
-            st.info("""
-            **Maintain healthy habits**  
-            • Regular check-ups recommended  
-            • Avoid smoking  
-            • Monitor for symptoms
-            """)
-            
-    except Exception as e:
-        st.error(f"Prediction failed: {str(e)}")
-        st.write("Please check your input values and try again")
-
-# Sidebar information
-st.sidebar.header('About')
-st.sidebar.info("""
-This tool provides estimates only. Always consult a healthcare professional for medical advice.
-""")
+            **Consult a healthcare professional
