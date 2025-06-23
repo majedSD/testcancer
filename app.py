@@ -2,14 +2,21 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
-from PIL import Image
 
-# Load the trained model
+# Load the trained model with better error handling
 @st.cache_resource
 def load_model():
-    with open('svc_model.pkl', 'rb') as file:
-        model = pickle.load(file)
-    return model
+    try:
+        with open('svc_model.pkl', 'rb') as file:
+            model = pickle.load(file)
+        
+        # Verify the loaded model
+        if not hasattr(model, 'predict'):
+            raise ValueError("Loaded object is not a valid scikit-learn model")
+        return model
+    except Exception as e:
+        st.error(f"Failed to load model: {str(e)}")
+        st.stop()
 
 model = load_model()
 
@@ -55,8 +62,8 @@ def prepare_input():
         'ANXIETY': 1 if anxiety == 'Yes' else 0,
         'PEER_PRESSURE': 1 if peer_pressure == 'Yes' else 0,
         'CHRONIC DISEASE': 1 if chronic_disease == 'Yes' else 0,
-        'FATIGUE ': 1 if fatigue == 'Yes' else 0,
-        'ALLERGY ': 1 if allergy == 'Yes' else 0,
+        'FATIGUE': 1 if fatigue == 'Yes' else 0,  # Removed trailing space
+        'ALLERGY': 1 if allergy == 'Yes' else 0,  # Removed trailing space
         'WHEEZING': 1 if wheezing == 'Yes' else 0,
         'ALCOHOL CONSUMING': 1 if alcohol == 'Yes' else 0,
         'COUGHING': 1 if coughing == 'Yes' else 0,
@@ -65,97 +72,79 @@ def prepare_input():
         'CHEST PAIN': 1 if chest_pain == 'Yes' else 0
     }
     
-    # Convert to DataFrame with correct column order
-    features = pd.DataFrame([input_data])
-    
-    # Ensure column order matches training data
+    # Convert to numpy array in correct order
     feature_order = [
         'GENDER', 'AGE', 'SMOKING', 'YELLOW_FINGERS', 'ANXIETY', 
-        'PEER_PRESSURE', 'CHRONIC DISEASE', 'FATIGUE ', 'ALLERGY ', 
+        'PEER_PRESSURE', 'CHRONIC DISEASE', 'FATIGUE', 'ALLERGY', 
         'WHEEZING', 'ALCOHOL CONSUMING', 'COUGHING', 
         'SHORTNESS OF BREATH', 'SWALLOWING DIFFICULTY', 'CHEST PAIN'
     ]
     
-    return features[feature_order]
+    # Return as 2D numpy array
+    return np.array([[input_data[col] for col in feature_order]])
 
 # Prediction button
 if st.button('Predict Lung Cancer Risk'):
-    input_df = prepare_input()
-    
-    # Make prediction
-    prediction = model.predict(input_df)
-    
-    # Display results
-    st.subheader('Prediction Results')
-    
-    if prediction[0] == 1:
-        st.error('High risk of lung cancer detected')
-        risk_level = "High"
-    else:
-        st.success('Low risk of lung cancer detected')
-        risk_level = "Low"
-    
-    # Try different methods to get confidence information
     try:
-        # Method 1: Check for decision_function
-        if hasattr(model, 'decision_function'):
-            confidence = model.decision_function(input_df)
-            st.write(f"Confidence score: {confidence[0]:.2f}")
-            if abs(confidence[0]) > 1:
-                st.write("Higher absolute values indicate stronger confidence")
+        input_data = prepare_input()
         
-        # Method 2: Check for predict_proba (if enabled)
-        elif hasattr(model, 'predict_proba'):
-            prediction_proba = model.predict_proba(input_df)
-            st.write(f"Probability of Lung Cancer: {prediction_proba[0][1]:.2%}")
+        # Debug: Show input shape and data
+        st.write("Input shape:", input_data.shape)
+        st.write("Sample input:", input_data[0])
         
-        # Method 3: If neither is available
+        # Make prediction
+        prediction = model.predict(input_data)
+        
+        # Ensure prediction is in the right format
+        prediction = np.array(prediction).flatten()
+        
+        st.subheader('Prediction Results')
+        
+        if prediction.size == 0:
+            st.error("No prediction was returned")
+        elif prediction[0] == 1:
+            st.error('High risk of lung cancer detected')
+            risk_level = "High"
         else:
-            st.info("This model provides binary predictions without confidence scores")
-    
+            st.success('Low risk of lung cancer detected')
+            risk_level = "Low"
+        
+        # Try to get confidence information
+        try:
+            if hasattr(model, 'decision_function'):
+                confidence = model.decision_function(input_data)
+                st.write(f"Confidence score: {confidence[0]:.2f}")
+                st.write("(Positive values indicate higher risk)")
+            
+            elif hasattr(model, 'predict_proba'):
+                proba = model.predict_proba(input_data)
+                st.write(f"Risk probability: {proba[0][1]:.1%}")
+        except Exception as e:
+            st.warning(f"Couldn't get confidence scores: {str(e)}")
+        
+        # Recommendations
+        st.subheader('Recommendation')
+        if risk_level == "High":
+            st.warning("""
+            **Consult a healthcare professional immediately**  
+            • Schedule a doctor's appointment  
+            • Consider diagnostic tests  
+            • Review risk factors
+            """)
+        else:
+            st.info("""
+            **Maintain healthy habits**  
+            • Regular check-ups recommended  
+            • Avoid smoking  
+            • Monitor for symptoms
+            """)
+            
     except Exception as e:
-        st.warning(f"Could not get confidence metrics: {str(e)}")
-    
-    # Interpretation
-    st.subheader('Recommendation')
-    if risk_level == "High":
-        st.warning("""
-        **Consult a healthcare professional immediately**  
-        - Schedule a doctor's appointment  
-        - Consider diagnostic tests like CT scans  
-        - Review risk factors and lifestyle changes
-        """)
-    else:
-        st.info("""
-        **Maintain healthy habits**  
-        - Regular health check-ups recommended  
-        - Avoid smoking and secondhand smoke  
-        - Monitor for any new symptoms
-        """)
+        st.error(f"Prediction failed: {str(e)}")
+        st.write("Please check your input values and try again")
 
-# Add some information about risk factors
+# Sidebar information
 st.sidebar.header('About')
 st.sidebar.info("""
-This prediction model is based on machine learning and is not a substitute for professional medical advice. 
-Always consult with a healthcare provider for medical concerns.
-""")
-
-st.sidebar.header('Risk Factors')
-st.sidebar.write("""
-Common risk factors for lung cancer:
-- Smoking (accounts for 80-90% of cases)
-- Exposure to radon gas
-- Occupational exposures (asbestos, arsenic)
-- Family history of lung cancer
-- Previous radiation therapy to the chest
-""")
-
-st.sidebar.header('Early Detection')
-st.sidebar.write("""
-Early signs may include:
-- Persistent cough
-- Chest pain
-- Shortness of breath
-- Coughing up blood
-- Unexplained weight loss
+This tool provides estimates only. Always consult a healthcare professional for medical advice.
 """)
