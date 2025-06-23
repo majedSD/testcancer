@@ -19,10 +19,6 @@ st.write("""
 This app predicts the likelihood of lung cancer based on various health and lifestyle factors.
 """)
 
-# Add an image (optional)
-# image = Image.open('lung_cancer_image.jpg')
-# st.image(image, caption='Lung Health Awareness', use_column_width=True)
-
 # Input fields
 st.header('Patient Information')
 
@@ -88,30 +84,53 @@ if st.button('Predict Lung Cancer Risk'):
     
     # Make prediction
     prediction = model.predict(input_df)
-    prediction_proba = model.predict_proba(input_df)
     
     # Display results
     st.subheader('Prediction Results')
     
     if prediction[0] == 1:
         st.error('High risk of lung cancer detected')
+        risk_level = "High"
     else:
         st.success('Low risk of lung cancer detected')
+        risk_level = "Low"
     
-    st.write(f"Probability of No Lung Cancer: {prediction_proba[0][0]:.2f}")
-    st.write(f"Probability of Lung Cancer: {prediction_proba[0][1]:.2f}")
+    # Try different methods to get confidence information
+    try:
+        # Method 1: Check for decision_function
+        if hasattr(model, 'decision_function'):
+            confidence = model.decision_function(input_df)
+            st.write(f"Confidence score: {confidence[0]:.2f}")
+            if abs(confidence[0]) > 1:
+                st.write("Higher absolute values indicate stronger confidence")
+        
+        # Method 2: Check for predict_proba (if enabled)
+        elif hasattr(model, 'predict_proba'):
+            prediction_proba = model.predict_proba(input_df)
+            st.write(f"Probability of Lung Cancer: {prediction_proba[0][1]:.2%}")
+        
+        # Method 3: If neither is available
+        else:
+            st.info("This model provides binary predictions without confidence scores")
+    
+    except Exception as e:
+        st.warning(f"Could not get confidence metrics: {str(e)}")
     
     # Interpretation
-    st.subheader('Interpretation')
-    if prediction[0] == 1:
+    st.subheader('Recommendation')
+    if risk_level == "High":
         st.warning("""
-        The model predicts a high risk of lung cancer. 
-        Please consult with a healthcare professional for further evaluation.
+        **Consult a healthcare professional immediately**  
+        - Schedule a doctor's appointment  
+        - Consider diagnostic tests like CT scans  
+        - Review risk factors and lifestyle changes
         """)
     else:
         st.info("""
-        The model predicts a low risk of lung cancer.
-        However, regular check-ups are still recommended for maintaining good health.
+        **Maintain healthy habits**  
+        - Regular health check-ups recommended  
+        - Avoid smoking and secondhand smoke  
+        - Monitor for any new symptoms
         """)
 
 # Add some information about risk factors
@@ -123,10 +142,20 @@ Always consult with a healthcare provider for medical concerns.
 
 st.sidebar.header('Risk Factors')
 st.sidebar.write("""
-Common risk factors for lung cancer include:
-- Smoking
-- Exposure to secondhand smoke
+Common risk factors for lung cancer:
+- Smoking (accounts for 80-90% of cases)
 - Exposure to radon gas
-- Exposure to asbestos and other carcinogens
+- Occupational exposures (asbestos, arsenic)
 - Family history of lung cancer
+- Previous radiation therapy to the chest
+""")
+
+st.sidebar.header('Early Detection')
+st.sidebar.write("""
+Early signs may include:
+- Persistent cough
+- Chest pain
+- Shortness of breath
+- Coughing up blood
+- Unexplained weight loss
 """)
