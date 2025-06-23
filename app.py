@@ -1,18 +1,15 @@
 import streamlit as st
-import pandas as pd
 import numpy as np
 import pickle
 
-# Load the trained model with better error handling
+# Load the trained Random Forest model
 @st.cache_resource
 def load_model():
     try:
-        with open('svc_model.pkl', 'rb') as file:
+        with open('Random_Forest_model.pkl', 'rb') as file:
             model = pickle.load(file)
-        
-        # Verify the loaded model
         if not hasattr(model, 'predict'):
-            raise ValueError("Loaded object is not a valid scikit-learn model")
+            raise ValueError("Invalid model loaded")
         return model
     except Exception as e:
         st.error(f"Failed to load model: {str(e)}")
@@ -20,108 +17,75 @@ def load_model():
 
 model = load_model()
 
-# Create the Streamlit app
 st.title('Lung Cancer Prediction System')
-st.write("""
-This app predicts the likelihood of lung cancer based on various health and lifestyle factors.
-""")
+st.write("This app predicts lung cancer risk based on health and lifestyle indicators.")
 
-# Input fields
+# User input
 st.header('Patient Information')
-
-# Create two columns
 col1, col2 = st.columns(2)
 
 with col1:
-    gender = st.radio('Gender', ['Male', 'Female'])
-    age = st.slider('Age', 20, 100, 50)
-    smoking = st.selectbox('Smoking', ['No', 'Yes'])
-    yellow_fingers = st.selectbox('Yellow Fingers', ['No', 'Yes'])
-    anxiety = st.selectbox('Anxiety', ['No', 'Yes'])
-    peer_pressure = st.selectbox('Peer Pressure', ['No', 'Yes'])
-    chronic_disease = st.selectbox('Chronic Disease', ['No', 'Yes'])
+    gender = st.radio('Gender', ['Male', 'Female'], index=0)
+    age = st.slider('Age', 20, 100, 60)
+    smoking = st.selectbox('Smoking', ['No', 'Yes'], index=1)
+    yellow_fingers = st.selectbox('Yellow Fingers', ['No', 'Yes'], index=1)
+    anxiety = st.selectbox('Anxiety', ['No', 'Yes'], index=0)
+    peer_pressure = st.selectbox('Peer Pressure', ['No', 'Yes'], index=0)
+    chronic_disease = st.selectbox('Chronic Disease', ['No', 'Yes'], index=1)
 
 with col2:
-    fatigue = st.selectbox('Fatigue', ['No', 'Yes'])
-    allergy = st.selectbox('Allergy', ['No', 'Yes'])
-    wheezing = st.selectbox('Wheezing', ['No', 'Yes'])
-    alcohol = st.selectbox('Alcohol Consuming', ['No', 'Yes'])
-    coughing = st.selectbox('Coughing', ['No', 'Yes'])
-    shortness = st.selectbox('Shortness of Breath', ['No', 'Yes'])
-    swallowing = st.selectbox('Swallowing Difficulty', ['No', 'Yes'])
-    chest_pain = st.selectbox('Chest Pain', ['No', 'Yes'])
+    fatigue = st.selectbox('Fatigue', ['No', 'Yes'], index=1)
+    allergy = st.selectbox('Allergy', ['No', 'Yes'], index=0)
+    wheezing = st.selectbox('Wheezing', ['No', 'Yes'], index=1)
+    alcohol = st.selectbox('Alcohol Consuming', ['No', 'Yes'], index=0)
+    coughing = st.selectbox('Coughing', ['No', 'Yes'], index=1)
+    shortness = st.selectbox('Shortness of Breath', ['No', 'Yes'], index=1)
+    swallowing = st.selectbox('Swallowing Difficulty', ['No', 'Yes'], index=0)
+    chest_pain = st.selectbox('Chest Pain', ['No', 'Yes'], index=1)
 
-# Convert inputs to model format
+# Correct mapping to training values: No=1, Yes=2
+def encode_yes_no(val):
+    return 2 if val == 'Yes' else 1
+
 def prepare_input():
-    # Convert to binary (1 for Yes, 0 for No)
-    input_data = {
-        'GENDER': 1 if gender == 'Male' else 0,
-        'AGE': age,
-        'SMOKING': 1 if smoking == 'Yes' else 0,
-        'YELLOW_FINGERS': 1 if yellow_fingers == 'Yes' else 0,
-        'ANXIETY': 1 if anxiety == 'Yes' else 0,
-        'PEER_PRESSURE': 1 if peer_pressure == 'Yes' else 0,
-        'CHRONIC DISEASE': 1 if chronic_disease == 'Yes' else 0,
-        'FATIGUE': 1 if fatigue == 'Yes' else 0,  # Removed trailing space
-        'ALLERGY': 1 if allergy == 'Yes' else 0,  # Removed trailing space
-        'WHEEZING': 1 if wheezing == 'Yes' else 0,
-        'ALCOHOL CONSUMING': 1 if alcohol == 'Yes' else 0,
-        'COUGHING': 1 if coughing == 'Yes' else 0,
-        'SHORTNESS OF BREATH': 1 if shortness == 'Yes' else 0,
-        'SWALLOWING DIFFICULTY': 1 if swallowing == 'Yes' else 0,
-        'CHEST PAIN': 1 if chest_pain == 'Yes' else 0
-    }
-    
-    # Convert to numpy array in correct order
-    feature_order = [
-        'GENDER', 'AGE', 'SMOKING', 'YELLOW_FINGERS', 'ANXIETY', 
-        'PEER_PRESSURE', 'CHRONIC DISEASE', 'FATIGUE', 'ALLERGY', 
-        'WHEEZING', 'ALCOHOL CONSUMING', 'COUGHING', 
-        'SHORTNESS OF BREATH', 'SWALLOWING DIFFICULTY', 'CHEST PAIN'
+    input_data = [
+        1 if gender == 'Male' else 0,
+        age,
+        encode_yes_no(smoking),
+        encode_yes_no(yellow_fingers),
+        encode_yes_no(anxiety),
+        encode_yes_no(peer_pressure),
+        encode_yes_no(chronic_disease),
+        encode_yes_no(fatigue),
+        encode_yes_no(allergy),
+        encode_yes_no(wheezing),
+        encode_yes_no(alcohol),
+        encode_yes_no(coughing),
+        encode_yes_no(shortness),
+        encode_yes_no(swallowing),
+        encode_yes_no(chest_pain)
     ]
-    
-    # Return as 2D numpy array
-    return np.array([[input_data[col] for col in feature_order]])
+    return np.array([input_data])
 
-# Prediction button
+# Predict
 if st.button('Predict Lung Cancer Risk'):
     try:
         input_data = prepare_input()
-        
-        # Debug: Show input shape and data
-        st.write("Input shape:", input_data.shape)
-        st.write("Sample input:", input_data[0])
-        
-        # Make prediction
-        prediction = model.predict(input_data)
-        
-        # Ensure prediction is in the right format
-        prediction = np.array(prediction).flatten()
-        
-        st.subheader('Prediction Results')
-        
-        if prediction.size == 0:
-            st.error("No prediction was returned")
-        elif prediction[0] == 1:
-            st.error('High risk of lung cancer detected')
+        prediction = model.predict(input_data)[0]
+
+        st.subheader("Prediction Results")
+        if prediction == 1:
+            st.error("High risk of lung cancer detected")
             risk_level = "High"
         else:
-            st.success('Low risk of lung cancer detected')
+            st.success("Low risk of lung cancer detected")
             risk_level = "Low"
-        
-        # Try to get confidence information
-        try:
-            if hasattr(model, 'decision_function'):
-                confidence = model.decision_function(input_data)
-                st.write(f"Confidence score: {confidence[0]:.2f}")
-                st.write("(Positive values indicate higher risk)")
-            
-            elif hasattr(model, 'predict_proba'):
-                proba = model.predict_proba(input_data)
-                st.write(f"Risk probability: {proba[0][1]:.1%}")
-        except Exception as e:
-            st.warning(f"Couldn't get confidence scores: {str(e)}")
-        
+
+        # Confidence (if available)
+        if hasattr(model, 'predict_proba'):
+            proba = model.predict_proba(input_data)
+            st.write(f"Risk Probability: {proba[0][1]:.1%}")
+
         # Recommendations
         st.subheader('Recommendation')
         if risk_level == "High":
@@ -138,13 +102,9 @@ if st.button('Predict Lung Cancer Risk'):
             • Avoid smoking  
             • Monitor for symptoms
             """)
-            
+
     except Exception as e:
         st.error(f"Prediction failed: {str(e)}")
-        st.write("Please check your input values and try again")
 
-# Sidebar information
 st.sidebar.header('About')
-st.sidebar.info("""
-This tool provides estimates only. Always consult a healthcare professional for medical advice.
-""")
+st.sidebar.info("This tool provides estimates only. Always consult a healthcare professional for medical advice.")
